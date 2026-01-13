@@ -10,6 +10,7 @@ interface ProfileProps {
 
 const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const requirements = useMemo(() => [
     { key: 'name', label: 'Full Identity', value: user.name, weight: 15 },
@@ -29,14 +30,30 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
     return !!(user.role && user.company && user.age && user.gender);
   }, [user.role, user.company, user.age, user.gender]);
 
-  const handleGenerateAvatar = async () => {
-    if (!canGenerateAvatar) return;
-    setIsGeneratingAvatar(true);
-    const photo = await generateExecutiveAvatar(user.role, user.company, user.age, user.gender);
-    if (photo) {
-      onUpdateUser({ ...user, profilePhoto: photo });
+  const proposedPrompt = useMemo(() => {
+    const personDesc = `${user.age ? user.age + ' year old' : ''} ${user.gender || ''}`.trim();
+    return `A premium, high-fidelity corporate headshot of a ${personDesc || 'professional'} executive ${user.role} at a top-tier global ${user.company}. Cinematic lighting, minimalist modern office background, sophisticated business attire, 8k resolution, photorealistic, professional color grade, neutral expression.`;
+  }, [user.role, user.company, user.age, user.gender]);
+
+  const handleOpenConfirm = () => {
+    if (canGenerateAvatar) {
+      setShowConfirmModal(true);
     }
-    setIsGeneratingAvatar(false);
+  };
+
+  const handleExecuteGeneration = async () => {
+    setShowConfirmModal(false);
+    setIsGeneratingAvatar(true);
+    try {
+      const photo = await generateExecutiveAvatar(user.role, user.company, user.age, user.gender);
+      if (photo) {
+        onUpdateUser({ ...user, profilePhoto: photo });
+      }
+    } catch (err) {
+      console.error("Avatar Synthesis Error:", err);
+    } finally {
+      setIsGeneratingAvatar(false);
+    }
   };
 
   const handleRoleChange = (role: User['role']) => {
@@ -70,13 +87,13 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                {isGeneratingAvatar && (
                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center space-y-2">
                    <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent animate-spin rounded-full"></div>
-                   <p className="text-[10px] text-blue-400 font-bold uppercase animate-pulse">Synthesizing</p>
+                   <p className="text-[10px] text-blue-400 font-bold uppercase animate-pulse text-center px-4">Synthesizing Visual Persona</p>
                  </div>
                )}
             </div>
             {!isGeneratingAvatar && (
               <button 
-                onClick={handleGenerateAvatar}
+                onClick={handleOpenConfirm}
                 disabled={!canGenerateAvatar}
                 className={`absolute -bottom-2 right-0 p-2.5 rounded-full shadow-lg border-2 border-[#0a0a0a] transition-all transform hover:scale-110 active:scale-95 group/btn ${
                   canGenerateAvatar 
@@ -109,6 +126,58 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
           </div>
         </div>
       </header>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 w-full max-w-lg rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="flex items-center space-x-4 mb-8">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Directive: Persona Synthesis</h3>
+                <p className="text-[10px] text-amber-600 dark:text-amber-500 font-black uppercase tracking-widest">Awaiting Strategic Approval</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/5 rounded-2xl p-6">
+                <label className="text-[9px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest block mb-4">Proposed Generative Logic</label>
+                <p className="text-sm text-slate-700 dark:text-gray-300 leading-relaxed font-medium italic">
+                  "{proposedPrompt}"
+                </p>
+              </div>
+
+              <div className="flex items-start space-x-3 p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
+                <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-[11px] text-slate-600 dark:text-gray-400 font-medium leading-relaxed">
+                  Uplink processing may take <span className="text-blue-600 dark:text-blue-400 font-black">5-10 seconds</span>. The generative engine will synthesize your visual identity based on demographic and professional anchors.
+                </p>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button 
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 py-4 bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400 font-black uppercase tracking-widest text-[10px] rounded-2xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all"
+                >
+                  Abort Sync
+                </button>
+                <button 
+                  onClick={handleExecuteGeneration}
+                  className="flex-1 py-4 bg-blue-600 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-xl shadow-blue-600/20 hover:bg-blue-500 transition-all active:scale-95"
+                >
+                  Execute Synthesis
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Completion Intelligence Section */}
       <section className="bg-white dark:bg-[#111] border border-slate-200 dark:border-white/5 rounded-[2rem] p-8 shadow-xl">
