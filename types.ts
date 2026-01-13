@@ -7,6 +7,8 @@ export interface User {
   company: string;
   bio?: string;
   profilePhoto?: string;
+  age?: number;
+  gender?: 'Male' | 'Female' | 'Non-binary' | 'Other';
   quickActions: QuickAction[];
 }
 

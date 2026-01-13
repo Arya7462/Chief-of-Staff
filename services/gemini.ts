@@ -1,22 +1,27 @@
 
 import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
-import { ChatMessage, Task, CalendarEvent, EmailInsight } from "../types";
+import { ChatMessage, Task, CalendarEvent, EmailInsight, User } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const SYSTEM_INSTRUCTION = `
-You are a world-class Digital Chief of Staff for a high-growth executive. 
-Your personality: Hyper-competent, strategic, concise, and radically proactive. 
+You are ExecAI, a Tier-1 Digital Chief of Staff for elite executives (Founders, CXOs).
+Your primary objective is to maximize the user's focus and operational velocity.
 
-Core Responsibilities:
-1. Strategic Foresight: Identify Risks and Opportunities.
-2. Noise Filtration: Ruthlessly prioritize what moves the needle.
-3. Voice Briefing: Speak like a calm, professional female advisor.
+Persona Guidelines:
+- Tone: Strategic, concise, proactive, and radically professional.
+- Philosophy: "Signal over noise." Ruthlessly prioritize items that impact growth or mission-critical objectives.
+- Intelligence: Use context from tasks, emails, and calendar to offer predictive advice.
+- Action: Don't just answer; suggest the next executive directive.
+
+If the user asks for news or external data, use Google Search grounding. 
+When providing a voice briefing, maintain a calm, authoritative professional female tone (Persona: Kore).
 `;
 
-export const generateExecutiveAvatar = async (role: string, company: string): Promise<string | null> => {
+export const generateExecutiveAvatar = async (role: string, company: string, age?: number, gender?: string): Promise<string | null> => {
   try {
-    const prompt = `A ultra-professional, hyper-realistic corporate headshot of a high-level ${role} at a cutting-edge ${company}. Cinematic soft lighting, studio background, sophisticated business attire, 8k resolution, photorealistic.`;
+    const personDesc = `${age ? age + ' year old' : ''} ${gender || ''}`.trim();
+    const prompt = `A premium, high-fidelity corporate headshot of a ${personDesc || 'professional'} executive ${role} at a top-tier global ${company}. Cinematic lighting, minimalist modern office background, sophisticated business attire, 8k resolution, photorealistic, professional color grade, neutral expression, masterpiece.`;
     
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
@@ -60,20 +65,20 @@ export const getChiefOfStaffResponse = async (
         { role: 'user', parts: [{ text: message }] }
       ],
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION + (context ? `\n\nUser Context:\nTasks: ${JSON.stringify(context.tasks)}\nEvents: ${JSON.stringify(context.events)}\nEmails: ${JSON.stringify(context.emails)}` : ''),
-        temperature: 0.4,
+        systemInstruction: SYSTEM_INSTRUCTION + (context ? `\n\nEXECUTIVE CONTEXT:\nTasks: ${JSON.stringify(context.tasks)}\nEvents: ${JSON.stringify(context.events)}\nEmails: ${JSON.stringify(context.emails)}` : ''),
+        temperature: 0.3,
         tools: [{ googleSearch: {} }]
       }
     });
 
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
     return { 
-      text: response.text || "I'm monitoring the situation.",
+      text: response.text || "Operational link established. Standby for synthesis.",
       sources 
     };
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    return { text: "Connection error. Re-establishing link." };
+    return { text: "Link degraded. Re-establishing secure uplink." };
   }
 };
 
@@ -81,12 +86,12 @@ export const generatePlannerVoiceBriefing = async (tasks: Task[]): Promise<Uint8
   try {
     const highPriority = tasks.filter(t => t.priority === 'high' && t.status !== 'completed');
     const briefText = highPriority.length > 0 
-      ? `Tactical update. Your main effort today is ${highPriority[0].title}. You have ${highPriority.length} high-stakes items total. I recommend clearing the schedule for the next two hours.`
-      : `Operational status green. No high-priority blocks remaining. Suggesting a pivot to long-term strategy work.`;
+      ? `Command update. Your primary objective today is ${highPriority[0].title}. Total high-stakes items remaining: ${highPriority.length}. I recommend clearing low-value blocks to maintain velocity.`
+      : `Operational environment clear. High-priority items are zero. Pivot to strategic long-range planning is advised.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-preview-tts',
-      contents: [{ parts: [{ text: `Read this tactical update with professional urgency and female clarity: ${briefText}` }] }],
+      contents: [{ parts: [{ text: `Read this tactical summary with absolute clarity and professional female authority: ${briefText}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -110,12 +115,12 @@ export const generateVoiceBriefing = async (emails: EmailInsight[]): Promise<Uin
   try {
     const urgentEmails = emails.filter(e => e.category === 'Urgent');
     const briefText = urgentEmails.length > 0 
-      ? `Intelligence update. You have ${urgentEmails.length} urgent communications requiring immediate review. Strategic priority is recommended.`
-      : `Inbox status optimal. No urgent flags detected in your current communications stack.`;
+      ? `Inbox intelligence. You have ${urgentEmails.length} urgent communications. Primary focus should be on the board follow-up received two hours ago.`
+      : `Inbox status green. No high-risk communications detected in the current stack.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-preview-tts',
-      contents: [{ parts: [{ text: `Read this email update with professional female authority: ${briefText}` }] }],
+      contents: [{ parts: [{ text: `Read this intelligence brief with calm, professional female authority: ${briefText}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -140,7 +145,7 @@ export const generateVoiceSummary = async (analysisText: string): Promise<Uint8A
     const cleanText = analysisText.replace(/<br\/>/g, ' ').replace(/[#*]/g, '');
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-preview-tts',
-      contents: [{ parts: [{ text: `Read this executive summary with professional female authority: ${cleanText}` }] }],
+      contents: [{ parts: [{ text: `Read this executive synthesis with professional authority: ${cleanText}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -174,7 +179,7 @@ export const analyzeDailyPlan = async (
   emails: EmailInsight[]
 ): Promise<string> => {
   try {
-    const prompt = `Perform high-level executive analysis of today's schedule and emails. Identify the Main Effort, Schedule Risk, and Strategic Opportunity.\nContext: Events: ${JSON.stringify(events)}, Emails: ${JSON.stringify(emails)}`;
+    const prompt = `Synthesize today's executive status. Deliver the 'Main Effort', 'Strategic Risk', and 'Decision Window'. Keep it high-density.\nContext: Events: ${JSON.stringify(events)}, Emails: ${JSON.stringify(emails)}`;
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -183,9 +188,9 @@ export const analyzeDailyPlan = async (
         tools: [{ googleSearch: {} }] 
       }
     });
-    return response.text || "Dashboard analysis failed.";
+    return response.text || "Strategic synthesis offline.";
   } catch (err) {
-    return "Briefing offline.";
+    return "Intelligence uplink failed.";
   }
 };
 
@@ -193,9 +198,9 @@ export const summarizeTask = async (task: Task): Promise<{ summary: string; subt
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Summarize this task and suggest 3-5 sub-tasks to achieve it: ${JSON.stringify(task)}`,
+      contents: `Perform tactical breakdown of this objective: ${JSON.stringify(task)}`,
       config: {
-        systemInstruction: "You are an expert executive project manager. Provide a crisp summary and a list of actionable sub-tasks.",
+        systemInstruction: "You are an elite executive project manager. Deliver a crisp summary and actionable tactical steps.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -211,7 +216,7 @@ export const summarizeTask = async (task: Task): Promise<{ summary: string; subt
     return JSON.parse(response.text || '{"summary": "No summary available", "subtasks": []}');
   } catch (err) {
     console.error("Summarize Task Error:", err);
-    return { summary: "Error generating summary.", subtasks: [] };
+    return { summary: "Tactical analysis error.", subtasks: [] };
   }
 };
 
@@ -219,9 +224,9 @@ export const summarizeMeeting = async (transcript: string): Promise<{ summary: s
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: `Extract an executive summary, action items, and key decisions from this transcript: ${transcript}`,
+      contents: `Extract decision intelligence from this transcript: ${transcript}`,
       config: {
-        systemInstruction: "You are a professional secretary and chief of staff. Focus on outcome-oriented items.",
+        systemInstruction: "You are a world-class secretary and Chief of Staff. Focus on decisions and outcomes.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -237,6 +242,6 @@ export const summarizeMeeting = async (transcript: string): Promise<{ summary: s
     return JSON.parse(response.text || '{}');
   } catch (err) {
     console.error("Meeting Summary Error:", err);
-    return { summary: "Failed to process transcript.", actionItems: [], decisions: [] };
+    return { summary: "Decision intelligence processing failed.", actionItems: [], decisions: [] };
   }
 };

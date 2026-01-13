@@ -8,6 +8,7 @@ import MeetingNotes from './components/MeetingNotes';
 import Settings from './components/Settings';
 import Profile from './components/Profile';
 import ChiefOfStaff from './components/ChiefOfStaff';
+import Auth from './components/Auth';
 import { Task, CalendarEvent, EmailInsight, User, QuickAction } from './types';
 import { analyzeDailyPlan } from './services/gemini';
 
@@ -17,16 +18,6 @@ const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
   { id: '3', label: 'Competitor Intel', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z', prompt: 'Pull recent news on top 3 competitors in our space.' },
   { id: '4', label: 'Draft Job Post', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', prompt: 'Create a job description for a Senior Frontend Engineer with Gemini expertise.' },
 ];
-
-const INITIAL_USER: User = {
-  id: 'exec-1',
-  name: 'John Doe',
-  email: 'john@hyperscale.io',
-  role: 'Founder',
-  company: 'HyperScale',
-  bio: 'Building the next generation of verticalized executive intelligence. Focus: Operational Velocity.',
-  quickActions: DEFAULT_QUICK_ACTIONS
-};
 
 const INITIAL_TASKS: Task[] = [
   { id: '1', title: 'Approve series B pitch deck', status: 'pending', priority: 'high', dueTime: '2:00 PM' },
@@ -52,16 +43,27 @@ const MOCK_EMAILS: EmailInsight[] = [
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [user, setUser] = useState<User>(INITIAL_USER);
+  const [user, setUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('execai_user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   const [aiAnalysis, setAiAnalysis] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Theme Management
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
     return (localStorage.getItem('execai-theme') as any) || 'system';
   });
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('execai_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('execai_user');
+    }
+  }, [user]);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -73,7 +75,6 @@ const App: React.FC = () => {
 
     updateTheme();
     
-    // Listen for system theme changes if in 'system' mode
     if (theme === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       const listener = () => updateTheme();
@@ -83,6 +84,7 @@ const App: React.FC = () => {
   }, [theme]);
 
   const fetchData = async () => {
+    if (!user) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -112,9 +114,23 @@ const App: React.FC = () => {
     setUser(updatedUser);
   };
 
+  const handleLogin = (userData: User) => {
+    setUser({ ...userData, quickActions: DEFAULT_QUICK_ACTIONS });
+    setActiveTab('dashboard');
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('execai_user');
+  };
+
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user) fetchData();
+  }, [user?.id]);
+
+  if (!user) {
+    return <Auth onLogin={handleLogin} />;
+  }
 
   const renderContent = () => {
     if (error) return (
@@ -137,7 +153,7 @@ const App: React.FC = () => {
       case 'meetings':
         return <MeetingNotes />;
       case 'settings':
-        return <Settings theme={theme} setTheme={setTheme} />;
+        return <Settings theme={theme} setTheme={setTheme} onLogout={handleLogout} />;
       case 'profile':
         return <Profile user={user} onUpdateUser={handleUpdateUser} />;
       default:
