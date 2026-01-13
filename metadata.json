@@ -1,0 +1,8 @@
+{
+  "name": "Copy of ExecAI - Digital Chief of Staff",
+  "description": "A high-performance executive assistant for founders and CXOs. Manage priorities, calendar insights, and email intelligence with a proactive AI Chief of Staff.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
